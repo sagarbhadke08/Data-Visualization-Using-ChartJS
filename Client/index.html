@@ -4,82 +4,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generate Report</title>
+    <meta name="description" content="Generate reports with interactive charts based on your data">
+    <title>Data Report Generator</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-    <style>
-        body {
-            background-color: #f8f9fa;
-        }
-        .card {
-            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-            border: none;
-            border-radius: 0.5rem;
-        }
-        .card-header {
-            background-color: #fff;
-            border-bottom: 1px solid rgba(0,0,0,.125);
-        }
-        .form-check-input:checked {
-            background-color: #0d6efd;
-            border-color: #0d6efd;
-        }
-
-        .card-body {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-    canvas {
-        max-width: 100%;
-        max-height: 400px;
-    }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
-    <div class="container-fluid py-4">
+    <header class="container-fluid py-4">
         <h1 class="mb-4">Generate Report</h1>
-        <div class="row mb-4">
+    </header>
+
+    <main class="container-fluid">
+        <section class="row mb-4">
             <div class="col-12">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Data Selection</h5>
+                        <h2 class="card-title h5 mb-0">Data Selection</h2>
                     </div>
                     <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
+                        <div class="data-selection-container">
+                            <div class="table-select-container col-md-4">
                                 <label for="table-select" class="form-label">Select Table:</label>
                                 <select class="form-select" id="table-select">
                                     <!-- Options will be populated dynamically -->
                                 </select>
                             </div>
-                            <div class="col-md-8">
-                                <div class="col-md-4 mb-3">
-                                    <label for="table-select" class="form-label">Select Field</label>
-                                </div>
-                                <div id="checkbox-container" class="d-flex flex-wrap">
-                                   
-                                    <!-- Fields will be populated dynamically -->
-                                </div>
+                            <div class="fields-container col-md-4" id="checkbox-container">
+                                <!-- Fields will be populated dynamically -->
+                            </div>
+                            <div class="run-btn-container col-md-4">
+                                <button id="run-btn" class="btn btn-primary">Run</button>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="row">
+        </section>
+
+        <section class="row mb-4">
+            <div class="col-12">
+                <button id="save-template" class="btn btn-secondary me-2">Save Template</button>
+                <select id="load-template" class="form-select d-inline-block" style="width: auto;">
+                    <option value="">Load Template</option>
+                </select>
+            </div>
+        </section>
+
+
+        <section class="row">
             <div class="col-md-6 mb-4">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">Bar Chart</h5>
-                        <button class="btn btn-sm btn-outline-secondary" id="download-bar-chart">
+                        <h3 class="card-title h5 mb-0">Bar Chart</h3>
+                        <button class="btn btn-sm btn-outline-secondary" id="download-bar-chart"
+                            aria-label="Download Bar Chart">
                             <i class="bi bi-download"></i> Download
                         </button>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body" style="height: 300px;"> <!-- Set a fixed height -->
                         <canvas id="bar-chart"></canvas>
                     </div>
                 </div>
@@ -87,20 +71,24 @@
             <div class="col-md-6 mb-4">
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">Pie Chart</h5>
-                        <button class="btn btn-sm btn-outline-secondary" id="download-pie-chart">
+                        <h3 class="card-title h5 mb-0">Pie Chart</h3>
+                        <button class="btn btn-sm btn-outline-secondary" id="download-pie-chart"
+                            aria-label="Download Pie Chart">
                             <i class="bi bi-download"></i> Download
                         </button>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body" style="height: 300px;"> <!-- Set a fixed height -->
                         <canvas id="pie-chart"></canvas>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
+        </section>
+    </main>
 
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <script src="script.js"></script>
 </body>
 

@@ -1,375 +1,400 @@
-$(document).ready(function () {
-  let barChartInstance = null;
-  let pieChartInstance = null;
+const MAX_CHECKBOXES = 2;
+const BASE_COLORS = [
+  "rgba(0, 0, 139, 0.8)",
+  "rgba(139, 0, 0, 0.8)",
+  "rgba(0, 100, 0, 0.8)",
+  "rgba(75, 0, 130, 0.8)",
+  "rgba(139, 69, 19, 0.8)",
+  "rgba(85, 107, 47, 0.8)",
+  "rgba(0, 139, 139, 0.8)",
+  "rgba(255, 140, 0, 0.8)",
+  "rgba(128, 0, 128, 0.8)",
+  "rgba(0, 128, 128, 0.8)",
+  "rgba(0, 0, 0, 0.8)",
+  "rgba(47, 79, 79, 0.8)",
+  "rgba(70, 130, 180, 0.8)",
+];
 
-  const maxCheckboxes = 2;
+// Chart instances
+let barChartInstance = null;
+let pieChartInstance = null;
 
-  function fetchTables() {
-    console.log("Fetching tables...");
+// Data storage
+let originalData = [];
+
+// DOM Elements
+const tableSelect = $("#table-select");
+const checkboxContainer = $("#checkbox-container");
+const runBtn = $("#run-btn");
+const saveTemplateBtn = $("#save-template");
+const loadTemplateSelect = $("#load-template");
+
+// Event Listeners
+$(document).ready(() => {
+  fetchTables();
+  loadTemplateOptions();
+  setupDownloadButtons();
+
+  tableSelect.on("change", handleTableChange);
+  runBtn.on("click", handleRunButtonClick);
+  saveTemplateBtn.on("click", handleSaveTemplate);
+  loadTemplateSelect.on("change", handleLoadTemplate);
+});
+
+// API Calls
+function fetchTables() {
+  $.ajax({
+    url: "fetch_tables.php",
+    type: "GET",
+    dataType: "json",
+    success: populateTableSelect,
+    error: (error) => console.error("Error fetching tables:", error),
+  });
+}
+
+function fetchFields(table) {
+  $.ajax({
+    url: "fetch_fields.php",
+    type: "GET",
+    data: { table },
+    dataType: "json",
+    success: generateCheckboxes,
+    error: (jqXHR, textStatus, errorThrown) =>
+      console.error("Error fetching fields:", textStatus, errorThrown),
+  });
+}
+
+function fetchData(table, fields) {
+  $.ajax({
+    url: "fetch_data.php",
+    type: "GET",
+    data: { table, fields: fields.join(",") },
+    dataType: "json",
+    success: (data) => {
+      originalData = data;
+      const aggregatedData = aggregateData(data, fields);
+      renderCharts(aggregatedData, fields);
+    },
+    error: (error) => console.error("Error fetching data:", error),
+  });
+}
+
+// Event Handlers
+function handleTableChange() {
+  const table = $(this).val();
+  resetCharts();
+  fetchFields(table);
+}
+
+function handleRunButtonClick() {
+  const table = tableSelect.val();
+  const selectedFields = getSelectedFields();
+  if (selectedFields.length === 0) {
+    alert("Please select at least one checkbox.");
+  } else {
+    fetchData(table, selectedFields);
+  }
+}
+
+function handleSaveTemplate() {
+  const templateName = prompt("Enter a name for this template:");
+  if (templateName) {
+    const table = tableSelect.val();
+    const selectedFields = getSelectedFields();
+
     $.ajax({
-      url: "fetch_tables.php",
-      type: "GET",
-      dataType: "json",
-      success: function (tables) {
-        console.log("Received tables:", tables);
-        const tableSelect = $("#table-select");
-        tableSelect.empty();
-        tables.forEach((table) => {
-          tableSelect.append(`<option value="${table}">${table}</option>`);
-        });
-
-        if (tables.length > 0) {
-          fetchFields(tables[0]);
-        }
+      url: "save_template.php",
+      type: "POST",
+      data: {
+        name: templateName,
+        table: table,
+        fields: JSON.stringify(selectedFields),
       },
-      error: function (error) {
-        console.error("Error fetching tables:", error);
+      success: () => {
+        alert("Template saved successfully!");
+        loadTemplateOptions();
+      },
+      error: (error) => {
+        console.error("Error saving template:", error);
+        alert("Error saving template. Please try again.");
       },
     });
   }
+}
 
-  $("#table-select").on("change", function () {
-    const table = $(this).val();
-    $("#chart").empty();
-    fetchFields(table);
-    if (barChartInstance) {
-      barChartInstance.destroy();
-      barChartInstance = null;
-    }
-    if (pieChartInstance) {
-      pieChartInstance.destroy();
-      pieChartInstance = null;
-    }
-  });
-
-  $("#checkbox-container").on("change", ".form-check-input", function () {
-    const selectedCheckboxes = $(".form-check-input:checked").length;
-    if (selectedCheckboxes >= maxCheckboxes) {
-      $(".form-check-input:not(:checked)").prop("disabled", true);
-    } else {
-      $(".form-check-input").prop("disabled", false);
-    }
-  });
-
-  $("#checkbox-container").on("click", "#run-btn", function () {
-    const table = $("#table-select").val();
-    const selectedFields = [];
-    $("input[type=checkbox]:checked").each(function () {
-      selectedFields.push($(this).val());
-    });
-    if (selectedFields.length === 0) {
-      alert("Please select at least one checkbox.");
-    } else {
-      fetchData(table, selectedFields);
-    }
-  });
-
-  function fetchFields(table) {
-    console.log("Fetching fields for table:", table);
+function handleLoadTemplate() {
+  const templateId = $(this).val();
+  if (templateId) {
     $.ajax({
-      url: "fetch_fields.php",
+      url: "load_template.php",
       type: "GET",
-      data: { table: table },
+      data: { id: templateId },
       dataType: "json",
-      success: function (fields) {
-        console.log("Received fields:", fields);
-        generateCheckboxes(fields);
-      },
-      error: function (jqXHR, textStatus, errorThrown) {
-        console.error("Error fetching fields:", textStatus, errorThrown);
-        console.log("Response:", jqXHR.responseText);
+      success: loadTemplate,
+      error: (error) => {
+        console.error("Error loading template:", error);
+        alert("Error loading template. Please try again.");
       },
     });
   }
-  function generateCheckboxes(fields) {
-    const container = $("#checkbox-container");
-    container.empty();
-    
-    fields.forEach((field) => {
-        container.append(`
-            <div class="form-check me-3 mb-2">
+}
+
+// Helper Functions
+function populateTableSelect(tables) {
+  tableSelect.empty();
+  tables.forEach((table) => {
+    tableSelect.append(`<option value="${table}">${table}</option>`);
+  });
+
+  if (tables.length > 0) {
+    fetchFields(tables[0]);
+  }
+}
+
+function generateCheckboxes(fields) {
+  checkboxContainer.empty();
+
+  fields.forEach((field) => {
+    checkboxContainer.append(`
+            <div class="form-check">
                 <input class="form-check-input" type="checkbox" value="${field}" id="checkbox-${field}">
-                <label class="form-check-label" for="checkbox-${field}">
-                    ${field}
-                </label>
+                <label class="form-check-label" for="checkbox-${field}">${field}</label>
             </div>
         `);
-    });
-    container.append('<button id="run-btn" class="btn btn-primary mt-2">Run</button>');
+  });
+
+  $(".form-check-input").on("change", enforceMaxCheckboxes);
 }
 
-  function fetchData(table, fields) {
-    $.ajax({
-      url: "fetch_data.php",
-      type: "GET",
-      data: { table: table, fields: fields.join(",") },
-      dataType: "json",
-      success: function (data) {
-        const aggregatedData = aggregateData(data, fields);
-        renderCharts(aggregatedData, fields);
-      },
-      error: function (error) {
-        console.error("Error fetching data:", error);
-      },
-    });
-  }
-
-  function aggregateData(data, fields) {
-    const result = {};
-    data.forEach((item) => {
-      const key = fields.map((field) => item[field]).join(" - ");
-      if (!result[key]) {
-        result[key] = 1;
-      } else {
-        result[key]++;
-      }
-    });
-    return Object.keys(result).map((key) => ({
-      key: key,
-      count: result[key],
-      ...Object.fromEntries(
-        fields.map((field, index) => [field, key.split(" - ")[index]])
-      ),
-    }));
-  }
-
-  function downloadChart(chartId, fileName) {
-    const canvas = document.getElementById(chartId);
-    
-    // Create a new canvas
-    const newCanvas = document.createElement('canvas');
-    newCanvas.width = canvas.width;
-    newCanvas.height = canvas.height;
-    
-    // Get the context and draw a white background
-    const ctx = newCanvas.getContext('2d');
-    ctx.fillStyle = 'white';
-    ctx.fillRect(0, 0, newCanvas.width, newCanvas.height);
-    
-    // Draw the original chart on top
-    ctx.drawImage(canvas, 0, 0);
-
-    // Create download link
-    const link = document.createElement('a');
-    link.download = fileName;
-    link.href = newCanvas.toDataURL('image/png');
-    link.click();
+function enforceMaxCheckboxes() {
+  const selectedCheckboxes = $(".form-check-input:checked").length;
+  $(".form-check-input:not(:checked)").prop(
+    "disabled",
+    selectedCheckboxes >= MAX_CHECKBOXES
+  );
 }
 
-$("#download-bar-chart").on("click", function() {
-    downloadChart('bar-chart', 'bar-chart.png');
-});
-
-$("#download-pie-chart").on("click", function() {
-    downloadChart('pie-chart', 'pie-chart.png');
-});
-
-  function renderCharts(data, fields) {
-    renderBarChart(data, fields);
-    renderPieChart(data, fields);
-    updateDataSummary(data);
-  }
-
-  function updateDataSummary(data) {
-    const totalCount = data.reduce((sum, item) => sum + item.count, 0);
-    const maxCount = Math.max(...data.map((item) => item.count));
-    const minCount = Math.min(...data.map((item) => item.count));
-
-    $("#data-summary").html(`
-      <p><strong>Total Count:</strong> ${totalCount}</p>
-      <p><strong>Max Count:</strong> ${maxCount}</p>
-      <p><strong>Min Count:</strong> ${minCount}</p>
-      <p><strong>Number of Categories:</strong> ${data.length}</p>
-  `);
-  }
-  function renderBarChart(data, fields) {
-    const ctx = $("#bar-chart")[0].getContext("2d");
-
-    if (barChartInstance) {
-      barChartInstance.destroy();
-    }
-
-    const labels = data.map((item) => item.key);
-    const counts = data.map((item) => item.count);
-    const colors = generateColors(labels.length);
-
-    barChartInstance = new Chart(ctx, {
-      type: "bar",
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: "Count",
-            data: counts,
-            backgroundColor: colors.map((color) => color.backgroundColor),
-            borderColor: colors.map((color) => color.borderColor),
-            borderWidth: 1,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        aspectRatio: 2,
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: {
-              precision: 0,
-            },
-          },
-          x: {
-            ticks: {
-              autoSkip: false,
-              maxRotation: 90,
-              minRotation: 90,
-            },
-          },
-        },
-        plugins: {
-          tooltip: {
-            callbacks: {
-              label: function (context) {
-                return `Count: ${context.parsed.y}`;
-              },
-            },
-          },
-        },
-      },
-    });
-  }
-
-  // function renderPieChart(data, fields) {
-  //   const ctx = $("#pie-chart")[0].getContext("2d");
-
-  //   if (pieChartInstance) {
-  //     pieChartInstance.destroy();
-  //   }
-
-  //   const labels = data.map((item) => item.key);
-  //   const counts = data.map((item) => item.count);
-  //   const colors = generateColors(labels.length);
-
-  //   pieChartInstance = new Chart(ctx, {
-  //     type: "pie",
-  //     data: {
-  //       labels: labels,
-  //       datasets: [
-  //         {
-  //           data: counts,
-  //           backgroundColor: colors.map((color) => color.backgroundColor),
-  //           borderColor: colors.map((color) => color.borderColor),
-  //           borderWidth: 1,
-  //         },
-  //       ],
-  //     },
-  //     options: {
-  //       responsive: true,
-  //       plugins: {
-  //         legend: {
-  //           position: "top",
-  //         },
-  //         title: {
-  //           display: true,
-  //           text: `${fields.join(" & ")} Distribution`,
-  //         },
-  //         tooltip: {
-  //           callbacks: {
-  //             label: function (context) {
-  //               return `${context.label}: ${context.parsed}`;
-  //             },
-  //           },
-  //         },
-  //       },
-  //     },
-  //   });
-  // }
-  function renderPieChart(data, fields) {
-    const ctx = $("#pie-chart")[0].getContext("2d");
-
-    if (pieChartInstance) {
-        pieChartInstance.destroy();
-    }
-
-    const labels = data.map((item) => item.key);
-    const counts = data.map((item) => item.count);
-    const colors = generateColors(labels.length);
-
-    pieChartInstance = new Chart(ctx, {
-        type: "pie",
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    data: counts,
-                    backgroundColor: colors.map((color) => color.backgroundColor),
-                    borderColor: colors.map((color) => color.borderColor),
-                    borderWidth: 1,
-                },
-            ],
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            aspectRatio: 2, // Set the aspect ratio to match the bar chart
-            plugins: {
-                legend: {
-                    position: "top",
-                    labels: {
-                        boxWidth: 12,
-                        font: {
-                            size: 10
-                        }
-                    }
-                },
-                title: {
-                    display: true,
-                    text: `${fields.join(" & ")} Distribution`,
-                    font: {
-                        size: 16
-                    }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function (context) {
-                            return `${context.label}: ${context.parsed}`;
-                        },
-                    },
-                },
-            },
-        },
-    });
+function getSelectedFields() {
+  return $("input[type=checkbox]:checked")
+    .map(function () {
+      return $(this).val();
+    })
+    .get();
 }
 
-  function generateColors(count) {
-    const baseColors = [
-      "rgba(0, 0, 139, 0.8)", // Dark Blue
-      "rgba(139, 0, 0, 0.8)", // Dark Red
-      "rgba(0, 100, 0, 0.8)", // Dark Green
-      "rgba(75, 0, 130, 0.8)", // Indigo
-      "rgba(139, 69, 19, 0.8)", // Saddle Brown
-      "rgba(85, 107, 47, 0.8)", // Dark Olive Green
-      "rgba(0, 139, 139, 0.8)", // Dark Cyan
-      "rgba(255, 140, 0, 0.8)", // Dark Orange
-      "rgba(128, 0, 128, 0.8)", // Purple
-      "rgba(0, 128, 128, 0.8)", // Teal
-      "rgba(0, 0, 0, 0.8)", // Black
-      "rgba(47, 79, 79, 0.8)", // Dark Slate Gray
-      "rgba(70, 130, 180, 0.8)", // Steel Blue
-    ];
-    const baseBorderColors = baseColors.map((color) =>
-      color.replace("0.8", "1")
-    );
+function resetCharts() {
+  $("#chart").empty();
+  if (barChartInstance) {
+    barChartInstance.destroy();
+    barChartInstance = null;
+  }
+  if (pieChartInstance) {
+    pieChartInstance.destroy();
+    pieChartInstance = null;
+  }
+}
 
-    const colors = [];
-    for (let i = 0; i < count; i++) {
-      colors.push({
-        backgroundColor: baseColors[i % baseColors.length],
-        borderColor: baseBorderColors[i % baseBorderColors.length],
+function aggregateData(data, fields) {
+  const result = {};
+
+  data.forEach((item) => {
+    const key = fields.map((field) => item[field]).join(" - ");
+    result[key] = (result[key] || 0) + 1;
+  });
+
+  return Object.entries(result).map(([key, count]) => ({
+    key,
+    count,
+    ...Object.fromEntries(
+      fields.map((field, index) => [field, key.split(" - ")[index]])
+    ),
+  }));
+}
+
+function renderCharts(data, fields) {
+  renderBarChart(data, fields);
+  renderPieChart(data, fields);
+}
+
+function renderBarChart(data, fields) {
+  const ctx = $("#bar-chart")[0].getContext("2d");
+
+  if (barChartInstance) {
+    barChartInstance.destroy();
+  }
+
+  const labels = data.map((item) => item.key);
+  const counts = data.map((item) => item.count);
+  const colors = generateColors(labels.length);
+
+  barChartInstance = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: "Count",
+          data: counts,
+          backgroundColor: colors.map((color) => color.backgroundColor),
+          borderColor: colors.map((color) => color.borderColor),
+          borderWidth: 1,
+        },
+      ],
+    },
+    options: getBarChartOptions(),
+  });
+}
+
+function renderPieChart(data, fields) {
+  const ctx = $("#pie-chart")[0].getContext("2d");
+
+  if (pieChartInstance) {
+    pieChartInstance.destroy();
+  }
+
+  const labels = data.map((item) => item.key);
+  const counts = data.map((item) => item.count);
+  const colors = generateColors(labels.length);
+
+  pieChartInstance = new Chart(ctx, {
+    type: "pie",
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          data: counts,
+          backgroundColor: colors.map((color) => color.backgroundColor),
+          borderColor: colors.map((color) => color.borderColor),
+          borderWidth: 1,
+        },
+      ],
+    },
+    options: getPieChartOptions(fields),
+  });
+}
+
+function generateColors(count) {
+  return Array.from({ length: count }, (_, i) => ({
+    backgroundColor: BASE_COLORS[i % BASE_COLORS.length],
+    borderColor: BASE_COLORS[i % BASE_COLORS.length].replace("0.8", "1"),
+  }));
+}
+function getBarChartOptions() {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: { precision: 0 },
+      },
+      x: {
+        ticks: {
+          autoSkip: true,
+          maxRotation: 90,
+          minRotation: 0,
+        },
+      },
+    },
+    plugins: {
+      legend: {
+        display: false,
+      },
+      tooltip: {
+        callbacks: {
+          label: (context) => `Count: ${context.parsed.y}`,
+        },
+      },
+    },
+  };
+}
+
+function getPieChartOptions(fields) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: "right",
+        labels: {
+          boxWidth: 12,
+        },
+      },
+      title: {
+        display: true,
+        text: `${fields.join(" & ")} Distribution`,
+        font: {
+          size: 16,
+        },
+      },
+      tooltip: {
+        callbacks: {
+          label: (context) => `${context.label}: ${context.parsed}`,
+        },
+      },
+    },
+  };
+}
+
+function loadTemplateOptions() {
+  $.ajax({
+    url: "get_templates.php",
+    type: "GET",
+    dataType: "json",
+    success: (templates) => {
+      loadTemplateSelect.find("option:not(:first)").remove();
+      templates.forEach((template) => {
+        loadTemplateSelect.append(
+          `<option value="${template.id}">${template.name}</option>`
+        );
       });
-    }
-    return colors;
-  }
+    },
+    error: (error) => console.error("Error fetching templates:", error),
+  });
+}
 
-  fetchTables();
-});
+function loadTemplate(template) {
+  tableSelect.val(template.table_name).trigger("change");
+  setTimeout(() => {
+    const fields = JSON.parse(template.fields);
+    fields.forEach((field) => {
+      $(`#checkbox-${field}`).prop("checked", true);
+    });
+    runBtn.click();
+  }, 500);
+}
+
+function downloadChart(chartInstance, fileName) {
+  const tempCanvas = document.createElement("canvas");
+  tempCanvas.width = chartInstance.width;
+  tempCanvas.height = chartInstance.height;
+  const tempCtx = tempCanvas.getContext("2d");
+
+  tempCtx.fillStyle = "white";
+  tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+  tempCtx.drawImage(chartInstance.canvas, 0, 0);
+
+  const link = document.createElement("a");
+  link.href = tempCanvas.toDataURL("image/png");
+  link.download = fileName;
+  link.click();
+}
+
+function setupDownloadButtons() {
+  $("#download-bar-chart").on("click", () => {
+    if (barChartInstance) {
+      downloadChart(barChartInstance, "bar-chart.png");
+    } else {
+      alert("Bar chart is not available. Please generate the report first.");
+    }
+  });
+
+  $("#download-pie-chart").on("click", () => {
+    if (pieChartInstance) {
+      downloadChart(pieChartInstance, "pie-chart.png");
+    } else {
+      alert("Pie chart is not available. Please generate the report first.");
+    }
+  });
+}
