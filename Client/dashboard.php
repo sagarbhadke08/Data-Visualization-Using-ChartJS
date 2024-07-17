@@ -17,11 +17,6 @@
         transition: all 0.3s ease;
     }
 
-    .card:hover {
-        box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
-        transform: translateY(-5px);
-    }
-
     .card-header {
         background-color: #007bff;
         color: white;
