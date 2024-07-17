@@ -130,76 +130,6 @@ async function handleSaveTemplate() {
   }
 }
 
-function getSelectedFields() {
-  return Array.from(document.querySelectorAll("input[type=checkbox]:checked"))
-    .filter((checkbox) => checkbox.id !== "view-on-dashboard")
-    .map((checkbox) => checkbox.value);
-}
-// async function handleSaveTemplate() {
-//   const templateName = prompt("Enter a name for this template:");
-//   if (templateName) {
-//     const table = tableSelect.value;
-//     const selectedFields = getSelectedFields();
-//     const viewOnDashboard = viewOnDashboardCheckbox.checked;
-
-//     try {
-//       const response = await fetch("save_template.php", {
-//         method: "POST",
-//         headers: {
-//           "Content-Type": "application/x-www-form-urlencoded",
-//         },
-//         body: `name=${encodeURIComponent(
-//           templateName
-//         )}&table=${encodeURIComponent(table)}&fields=${encodeURIComponent(
-//           JSON.stringify(selectedFields)
-//         )}&viewOnDashboard=${viewOnDashboard ? 1 : 0}`,
-//       });
-//       const result = await response.json();
-//       if (result.success) {
-//         alert("Template saved successfully!");
-//         await loadTemplateOptions();
-//       } else {
-//         throw new Error(result.error);
-//       }
-//     } catch (error) {
-//       console.error("Error saving template:", error);
-//       alert("Error saving template. Please try again.");
-//     }
-//   }
-// }
-// async function handleSaveTemplate() {
-//   const templateName = prompt("Enter a name for this template:");
-//   if (templateName) {
-//     const table = tableSelect.value;
-//     const selectedFields = getSelectedFields();
-//     const viewOnDashboard = viewOnDashboardCheckbox.checked;
-
-//     try {
-//       const response = await fetch("save_template.php", {
-//         method: "POST",
-//         headers: {
-//           "Content-Type": "application/x-www-form-urlencoded",
-//         },
-//         body: `name=${encodeURIComponent(
-//           templateName
-//         )}&table=${encodeURIComponent(table)}&fields=${encodeURIComponent(
-//           JSON.stringify(selectedFields)
-//         )}&viewOnDashboard=${viewOnDashboard ? 1 : 0}`,
-//       });
-//       const result = await response.json();
-//       if (result.success) {
-//         alert("Template saved successfully!");
-//         await loadTemplateOptions();
-//       } else {
-//         throw new Error(result.error);
-//       }
-//     } catch (error) {
-//       console.error("Error saving template:", error);
-//       alert("Error saving template. Please try again.");
-//     }
-//   }
-// }
-
 async function handleLoadTemplate() {
   const templateId = this.value;
   if (templateId) {
@@ -217,6 +147,8 @@ async function handleLoadTemplate() {
     resetCharts();
   }
 }
+
+
 
 // Helper Functions
 function populateTableSelect(tables) {
@@ -246,9 +178,11 @@ function generateCheckboxes(fields) {
     checkboxContainer.appendChild(div);
   });
 
-  document.querySelectorAll(".form-check-input").forEach((checkbox) => {
-    checkbox.addEventListener("change", enforceMaxCheckboxes);
-  });
+  document
+    .querySelectorAll(".form-check-input:not(#view-on-dashboard)")
+    .forEach((checkbox) => {
+      checkbox.addEventListener("change", enforceMaxCheckboxes);
+    });
 }
 
 function enforceMaxCheckboxes() {
@@ -266,7 +200,9 @@ function enforceMaxCheckboxes() {
 
 function getSelectedFields() {
   return Array.from(
-    document.querySelectorAll("input[type=checkbox]:checked")
+    document.querySelectorAll(
+      ".form-check-input:checked:not(#view-on-dashboard)"
+    )
   ).map((checkbox) => checkbox.value);
 }
 
