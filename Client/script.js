@@ -15,135 +15,217 @@ const BASE_COLORS = [
   "rgba(70, 130, 180, 0.8)",
 ];
 
-// Chart instances
 let barChartInstance = null;
 let pieChartInstance = null;
-
-// Data storage
 let originalData = [];
 
 // DOM Elements
-const tableSelect = $("#table-select");
-const checkboxContainer = $("#checkbox-container");
-const runBtn = $("#run-btn");
-const saveTemplateBtn = $("#save-template");
-const loadTemplateSelect = $("#load-template");
+const tableSelect = document.getElementById("table-select");
+const checkboxContainer = document.getElementById("checkbox-container");
+const runBtn = document.getElementById("run-btn");
+const saveTemplateBtn = document.getElementById("save-template");
+const loadTemplateSelect = document.getElementById("load-template");
+const viewOnDashboardCheckbox = document.getElementById("view-on-dashboard");
 
 // Event Listeners
-$(document).ready(() => {
-  fetchTables();
-  loadTemplateOptions();
+document.addEventListener("DOMContentLoaded", async () => {
+  await fetchTables();
+  await loadTemplateOptions();
   setupDownloadButtons();
 
-  tableSelect.on("change", handleTableChange);
-  runBtn.on("click", handleRunButtonClick);
-  saveTemplateBtn.on("click", handleSaveTemplate);
-  loadTemplateSelect.on("change", handleLoadTemplate);
+  tableSelect.addEventListener("change", handleTableChange);
+  runBtn.addEventListener("click", handleRunButtonClick);
+  saveTemplateBtn.addEventListener("click", handleSaveTemplate);
+  loadTemplateSelect.addEventListener("change", handleLoadTemplate);
 });
 
 // API Calls
-function fetchTables() {
-  $.ajax({
-    url: "fetch_tables.php",
-    type: "GET",
-    dataType: "json",
-    success: populateTableSelect,
-    error: (error) => console.error("Error fetching tables:", error),
-  });
+async function fetchTables() {
+  try {
+    const response = await fetch("fetch_tables.php");
+    const tables = await response.json();
+    populateTableSelect(tables);
+  } catch (error) {
+    console.error("Error fetching tables:", error);
+  }
 }
 
-function fetchFields(table) {
-  $.ajax({
-    url: "fetch_fields.php",
-    type: "GET",
-    data: { table },
-    dataType: "json",
-    success: generateCheckboxes,
-    error: (jqXHR, textStatus, errorThrown) =>
-      console.error("Error fetching fields:", textStatus, errorThrown),
-  });
+async function fetchFields(table) {
+  try {
+    const response = await fetch(
+      `fetch_fields.php?table=${encodeURIComponent(table)}`
+    );
+    const fields = await response.json();
+    generateCheckboxes(fields);
+  } catch (error) {
+    console.error("Error fetching fields:", error);
+  }
 }
 
-function fetchData(table, fields) {
-  $.ajax({
-    url: "fetch_data.php",
-    type: "GET",
-    data: { table, fields: fields.join(",") },
-    dataType: "json",
-    success: (data) => {
-      originalData = data;
-      const aggregatedData = aggregateData(data, fields);
-      renderCharts(aggregatedData, fields);
-    },
-    error: (error) => console.error("Error fetching data:", error),
-  });
+async function fetchData(table, fields) {
+  try {
+    const response = await fetch(
+      `fetch_data.php?table=${encodeURIComponent(
+        table
+      )}&fields=${encodeURIComponent(fields.join(","))}`
+    );
+    const data = await response.json();
+    originalData = data;
+    const aggregatedData = aggregateData(data, fields);
+    renderCharts(aggregatedData, fields);
+  } catch (error) {
+    console.error("Error fetching data:", error);
+  }
 }
 
 // Event Handlers
-function handleTableChange() {
-  const table = $(this).val();
+async function handleTableChange() {
+  const table = this.value;
   resetCharts();
-  fetchFields(table);
+  await fetchFields(table);
+  loadTemplateSelect.value = "";
 }
 
-function handleRunButtonClick() {
-  const table = tableSelect.val();
+async function handleRunButtonClick() {
+  const table = tableSelect.value;
   const selectedFields = getSelectedFields();
   if (selectedFields.length === 0) {
     alert("Please select at least one checkbox.");
   } else {
-    fetchData(table, selectedFields);
+    await fetchData(table, selectedFields);
   }
 }
 
-function handleSaveTemplate() {
+async function handleSaveTemplate() {
   const templateName = prompt("Enter a name for this template:");
   if (templateName) {
-    const table = tableSelect.val();
+    const table = tableSelect.value;
     const selectedFields = getSelectedFields();
+    const viewOnDashboard =
+      document.getElementById("view-on-dashboard").checked;
 
-    $.ajax({
-      url: "save_template.php",
-      type: "POST",
-      data: {
-        name: templateName,
-        table: table,
-        fields: JSON.stringify(selectedFields),
-      },
-      success: () => {
+    try {
+      const response = await fetch("save_template.php", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: `name=${encodeURIComponent(
+          templateName
+        )}&table=${encodeURIComponent(table)}&fields=${encodeURIComponent(
+          JSON.stringify(selectedFields)
+        )}&view_on_dashboard=${viewOnDashboard ? 1 : 0}`,
+      });
+      const result = await response.json();
+      if (result.success) {
         alert("Template saved successfully!");
-        loadTemplateOptions();
-      },
-      error: (error) => {
-        console.error("Error saving template:", error);
-        alert("Error saving template. Please try again.");
-      },
-    });
+        await loadTemplateOptions();
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error("Error saving template:", error);
+      alert("Error saving template. Please try again.");
+    }
   }
 }
 
-function handleLoadTemplate() {
-  const templateId = $(this).val();
+function getSelectedFields() {
+  return Array.from(document.querySelectorAll("input[type=checkbox]:checked"))
+    .filter((checkbox) => checkbox.id !== "view-on-dashboard")
+    .map((checkbox) => checkbox.value);
+}
+// async function handleSaveTemplate() {
+//   const templateName = prompt("Enter a name for this template:");
+//   if (templateName) {
+//     const table = tableSelect.value;
+//     const selectedFields = getSelectedFields();
+//     const viewOnDashboard = viewOnDashboardCheckbox.checked;
+
+//     try {
+//       const response = await fetch("save_template.php", {
+//         method: "POST",
+//         headers: {
+//           "Content-Type": "application/x-www-form-urlencoded",
+//         },
+//         body: `name=${encodeURIComponent(
+//           templateName
+//         )}&table=${encodeURIComponent(table)}&fields=${encodeURIComponent(
+//           JSON.stringify(selectedFields)
+//         )}&viewOnDashboard=${viewOnDashboard ? 1 : 0}`,
+//       });
+//       const result = await response.json();
+//       if (result.success) {
+//         alert("Template saved successfully!");
+//         await loadTemplateOptions();
+//       } else {
+//         throw new Error(result.error);
+//       }
+//     } catch (error) {
+//       console.error("Error saving template:", error);
+//       alert("Error saving template. Please try again.");
+//     }
+//   }
+// }
+// async function handleSaveTemplate() {
+//   const templateName = prompt("Enter a name for this template:");
+//   if (templateName) {
+//     const table = tableSelect.value;
+//     const selectedFields = getSelectedFields();
+//     const viewOnDashboard = viewOnDashboardCheckbox.checked;
+
+//     try {
+//       const response = await fetch("save_template.php", {
+//         method: "POST",
+//         headers: {
+//           "Content-Type": "application/x-www-form-urlencoded",
+//         },
+//         body: `name=${encodeURIComponent(
+//           templateName
+//         )}&table=${encodeURIComponent(table)}&fields=${encodeURIComponent(
+//           JSON.stringify(selectedFields)
+//         )}&viewOnDashboard=${viewOnDashboard ? 1 : 0}`,
+//       });
+//       const result = await response.json();
+//       if (result.success) {
+//         alert("Template saved successfully!");
+//         await loadTemplateOptions();
+//       } else {
+//         throw new Error(result.error);
+//       }
+//     } catch (error) {
+//       console.error("Error saving template:", error);
+//       alert("Error saving template. Please try again.");
+//     }
+//   }
+// }
+
+async function handleLoadTemplate() {
+  const templateId = this.value;
   if (templateId) {
-    $.ajax({
-      url: "load_template.php",
-      type: "GET",
-      data: { id: templateId },
-      dataType: "json",
-      success: loadTemplate,
-      error: (error) => {
-        console.error("Error loading template:", error);
-        alert("Error loading template. Please try again.");
-      },
-    });
+    try {
+      const response = await fetch(
+        `load_template.php?id=${encodeURIComponent(templateId)}`
+      );
+      const template = await response.json();
+      await loadTemplate(template);
+    } catch (error) {
+      console.error("Error loading template:", error);
+      alert("Error loading template. Please try again.");
+    }
+  } else {
+    resetCharts();
   }
 }
 
 // Helper Functions
 function populateTableSelect(tables) {
-  tableSelect.empty();
+  tableSelect.innerHTML = "";
   tables.forEach((table) => {
-    tableSelect.append(`<option value="${table}">${table}</option>`);
+    const option = document.createElement("option");
+    option.value = table;
+    option.textContent = table;
+    tableSelect.appendChild(option);
   });
 
   if (tables.length > 0) {
@@ -152,38 +234,49 @@ function populateTableSelect(tables) {
 }
 
 function generateCheckboxes(fields) {
-  checkboxContainer.empty();
+  checkboxContainer.innerHTML = "";
 
   fields.forEach((field) => {
-    checkboxContainer.append(`
-            <div class="form-check">
-                <input class="form-check-input" type="checkbox" value="${field}" id="checkbox-${field}">
-                <label class="form-check-label" for="checkbox-${field}">${field}</label>
-            </div>
-        `);
+    const div = document.createElement("div");
+    div.className = "form-check";
+    div.innerHTML = `
+      <input class="form-check-input" type="checkbox" value="${field}" id="checkbox-${field}">
+      <label class="form-check-label" for="checkbox-${field}">${field}</label>
+    `;
+    checkboxContainer.appendChild(div);
   });
 
-  $(".form-check-input").on("change", enforceMaxCheckboxes);
+  document.querySelectorAll(".form-check-input").forEach((checkbox) => {
+    checkbox.addEventListener("change", enforceMaxCheckboxes);
+  });
 }
 
 function enforceMaxCheckboxes() {
-  const selectedCheckboxes = $(".form-check-input:checked").length;
-  $(".form-check-input:not(:checked)").prop(
-    "disabled",
-    selectedCheckboxes >= MAX_CHECKBOXES
-  );
+  const selectedCheckboxes = document.querySelectorAll(
+    ".form-check-input:checked"
+  ).length;
+  document
+    .querySelectorAll(".form-check-input:not(:checked)")
+    .forEach((checkbox) => {
+      checkbox.disabled = selectedCheckboxes >= MAX_CHECKBOXES;
+    });
+
+  viewOnDashboardCheckbox.disabled = false;
 }
 
 function getSelectedFields() {
-  return $("input[type=checkbox]:checked")
-    .map(function () {
-      return $(this).val();
-    })
-    .get();
+  return Array.from(
+    document.querySelectorAll("input[type=checkbox]:checked")
+  ).map((checkbox) => checkbox.value);
 }
 
 function resetCharts() {
-  $("#chart").empty();
+  const barChartElement = document.getElementById("bar-chart");
+  const pieChartElement = document.getElementById("pie-chart");
+
+  barChartElement.innerHTML = "";
+  pieChartElement.innerHTML = "";
+
   if (barChartInstance) {
     barChartInstance.destroy();
     barChartInstance = null;
@@ -217,7 +310,7 @@ function renderCharts(data, fields) {
 }
 
 function renderBarChart(data, fields) {
-  const ctx = $("#bar-chart")[0].getContext("2d");
+  const ctx = document.getElementById("bar-chart").getContext("2d");
 
   if (barChartInstance) {
     barChartInstance.destroy();
@@ -246,7 +339,7 @@ function renderBarChart(data, fields) {
 }
 
 function renderPieChart(data, fields) {
-  const ctx = $("#pie-chart")[0].getContext("2d");
+  const ctx = document.getElementById("pie-chart").getContext("2d");
 
   if (pieChartInstance) {
     pieChartInstance.destroy();
@@ -279,6 +372,7 @@ function generateColors(count) {
     borderColor: BASE_COLORS[i % BASE_COLORS.length].replace("0.8", "1"),
   }));
 }
+
 function getBarChartOptions() {
   return {
     responsive: true,
@@ -336,30 +430,34 @@ function getPieChartOptions(fields) {
   };
 }
 
-function loadTemplateOptions() {
-  $.ajax({
-    url: "get_templates.php",
-    type: "GET",
-    dataType: "json",
-    success: (templates) => {
-      loadTemplateSelect.find("option:not(:first)").remove();
-      templates.forEach((template) => {
-        loadTemplateSelect.append(
-          `<option value="${template.id}">${template.name}</option>`
-        );
-      });
-    },
-    error: (error) => console.error("Error fetching templates:", error),
-  });
+async function loadTemplateOptions() {
+  try {
+    const response = await fetch("get_templates.php");
+    const templates = await response.json();
+    loadTemplateSelect.innerHTML =
+      '<option value="">Select a template</option>';
+    templates.forEach((template) => {
+      const option = document.createElement("option");
+      option.value = template.id;
+      option.textContent = template.name;
+      loadTemplateSelect.appendChild(option);
+    });
+  } catch (error) {
+    console.error("Error fetching templates:", error);
+  }
 }
 
-function loadTemplate(template) {
-  tableSelect.val(template.table_name).trigger("change");
+async function loadTemplate(template) {
+  tableSelect.value = template.table_name;
+  await fetchFields(template.table_name);
+
   setTimeout(() => {
     const fields = JSON.parse(template.fields);
     fields.forEach((field) => {
-      $(`#checkbox-${field}`).prop("checked", true);
+      const checkbox = document.getElementById(`checkbox-${field}`);
+      if (checkbox) checkbox.checked = true;
     });
+    viewOnDashboardCheckbox.checked = template.view_on_dashboard === "1";
     runBtn.click();
   }, 500);
 }
@@ -382,19 +480,23 @@ function downloadChart(chartInstance, fileName) {
 }
 
 function setupDownloadButtons() {
-  $("#download-bar-chart").on("click", () => {
-    if (barChartInstance) {
-      downloadChart(barChartInstance, "bar-chart.png");
-    } else {
-      alert("Bar chart is not available. Please generate the report first.");
-    }
-  });
+  document
+    .getElementById("download-bar-chart")
+    .addEventListener("click", () => {
+      if (barChartInstance) {
+        downloadChart(barChartInstance, "bar-chart.png");
+      } else {
+        alert("Bar chart is not available. Please generate the report first.");
+      }
+    });
 
-  $("#download-pie-chart").on("click", () => {
-    if (pieChartInstance) {
-      downloadChart(pieChartInstance, "pie-chart.png");
-    } else {
-      alert("Pie chart is not available. Please generate the report first.");
-    }
-  });
+  document
+    .getElementById("download-pie-chart")
+    .addEventListener("click", () => {
+      if (pieChartInstance) {
+        downloadChart(pieChartInstance, "pie-chart.png");
+      } else {
+        alert("Pie chart is not available. Please generate the report first.");
+      }
+    });
 }
